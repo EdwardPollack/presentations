@@ -92,7 +92,10 @@ ORDER BY SalespersonPersonID;
 
 SELECT DATETRUNC(DAY, SYSDATETIME()); -- Rounds to today's date at midnight.
 
+SELECT DATETRUNC(MINUTE, SYSDATETIME()); -- Rounds to current datetime second
+
 SELECT DATETRUNC(SECOND, SYSDATETIME()); -- Rounds to current datetime second
+
 -- Note that functions in the WHERE clause may not perform well, but this syntax is valid.  Test performance to ensure it is adequate.
 SELECT
 	*
@@ -222,7 +225,7 @@ FROM sys.index_resumable_operations;
 
 DROP TABLE dbo.SalesOrderLinesTest;
 /**************************************************************************************
-*****************************Greatest() and Least()****************************************
+*****************************Greatest() and Least()************************************
 ***************************************************************************************/
 
 SELECT
@@ -297,6 +300,7 @@ SELECT
 
 SELECT
 	Orders.OrderID,
+	Orders.ExpectedDeliveryDate,
 	DATE_BUCKET(WEEK, 1, Orders.ExpectedDeliveryDate) AS date_bucket_1_week,
 	DATE_BUCKET(WEEK, 2, Orders.ExpectedDeliveryDate) AS date_bucket_2_weeks,
 	DATE_BUCKET(MONTH, 1, Orders.ExpectedDeliveryDate) AS date_bucket_1_month
@@ -360,10 +364,11 @@ SELECT
 	MAX(Orders.OrderDate) OVER CustomerWindow AS most_recent_order_date
 FROM sales.Orders
 WINDOW CustomerWindow AS (PARTITION BY Orders.CustomerID ORDER BY SalespersonPersonID);
--- Note that the WINDOW can include all details, such as ROWS UNBOUNDED PRECEEDEDING, FOLLOWING, etc...
+-- Note that the WINDOW can include all details, such as ROWS UNBOUNDED PRECEEDING, FOLLOWING, etc...
 /**************************************************************************************
 *************************************FIRST_VALUE() and LAST_VALUE()********************
 ***************************************************************************************/
+-- Previously available syntax:
 SELECT
 	OrderID,
 	Orders.CustomerID,
@@ -376,6 +381,23 @@ SELECT
 FROM sales.Orders
 WINDOW CustomerWindow AS (PARTITION BY Orders.CustomerID ORDER BY SalespersonPersonID);
 -- Note that these are ordered by the window ORDER BY, not by the column being analyzed!
+
+-- New syntax w/ SQL Server 2022+
+SELECT
+	OrderID,
+	Orders.CustomerID,
+	Orders.SalespersonPersonID,
+	ROW_NUMBER() OVER CustomerWindow AS row_num,
+	COUNT(*) OVER CustomerWindow AS row_count_total,
+	MAX(Orders.OrderDate) OVER CustomerWindow AS most_recent_order_date,
+	FIRST_VALUE(Orders.OrderDate) OVER CustomerWindow AS first_order_date, -- First order date per CustomerID when ordered by SalespersonPersonID
+	LAST_VALUE(Orders.OrderDate) OVER CustomerWindow AS last_order_date, -- Last order date per CustomerID when ordered by SalespersonPersonID
+	FIRST_VALUE(Orders.BackorderOrderID) OVER CustomerWindow AS BackorderOrderID,
+	FIRST_VALUE(Orders.BackorderOrderID) RESPECT NULLS OVER CustomerWindow AS BackorderOrderID_First_Respect,
+	FIRST_VALUE(Orders.BackorderOrderID) IGNORE NULLS OVER CustomerWindow AS BackorderOrderID_First_Ignore
+FROM sales.Orders
+WINDOW CustomerWindow AS (PARTITION BY Orders.CustomerID ORDER BY SalespersonPersonID);
+-- Default is to RESPECT NULLS
 /**************************************************************************************
 *********************************TRIM, LTRIM, RTRIM************************************
 ***************************************************************************************/
